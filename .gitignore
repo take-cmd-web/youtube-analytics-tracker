@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# OAuth credentials - これらはGitHub Secretsに保存し、リポジトリには絶対に上げない
+client_secret.json
+token.json
+oauth_client.json
+*.credentials
+
+.DS_Store
+.idea/
+.vscode/
