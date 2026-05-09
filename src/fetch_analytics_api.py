@@ -4,8 +4,7 @@ YouTube Analytics API から自チャンネルの詳細指標を取得し、CSV�
 取得項目（動画ごと・日別）:
     - 視聴回数、推定視聴時間（分）、平均視聴時間（秒）
     - 平均視聴維持率（%）
-    - インプレッション数、CTR
-    - 高評価/低評価/コメント/共有/再生リスト追加
+    - 高評価/コメント/共有/再生リスト追加
     - チャンネル登録獲得数/解除数
 
 使い方:
@@ -36,6 +35,7 @@ SCOPES = [
 ]
 
 # Analytics APIで一度に取得する指標
+# 注意: dislikesは2021年にYouTubeが非公開化したため、Analytics APIからも削除されている
 METRICS = ",".join(
     [
         "views",
@@ -43,7 +43,6 @@ METRICS = ",".join(
         "averageViewDuration",       # 秒
         "averageViewPercentage",     # %
         "likes",
-        "dislikes",                  # APIでは取得可能（公開はされない）
         "comments",
         "shares",
         "subscribersGained",
@@ -51,9 +50,6 @@ METRICS = ",".join(
         "videosAddedToPlaylists",
     ]
 )
-
-# CTR/インプレッションは別エンドポイント（traffic source等と同じくfilters組み合わせが必要）
-IMPRESSION_METRICS = "cardImpressions,cardClickRate"  # 参考。実用は下のCTR用クエリ
 
 CSV_FIELDS = [
     "snapshot_date",
@@ -64,7 +60,6 @@ CSV_FIELDS = [
     "average_view_duration_sec",
     "average_view_percentage",
     "likes",
-    "dislikes",
     "comments",
     "shares",
     "subscribers_gained",
@@ -128,7 +123,6 @@ def fetch_video_analytics(
         "averageViewDuration": "average_view_duration_sec",
         "averageViewPercentage": "average_view_percentage",
         "likes": "likes",
-        "dislikes": "dislikes",
         "comments": "comments",
         "shares": "shares",
         "subscribersGained": "subscribers_gained",
