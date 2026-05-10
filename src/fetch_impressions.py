@@ -1,15 +1,10 @@
 """
-YouTube Analytics API からインプレッション・CTR データを取得する。
+YouTube Analytics API からCTR・インプレッションデータを取得する。
 
-取得項目（動画ごと・期間集計）:
-    - インプレッション数（サムネイルが表示された回数）
-    - インプレッションCTR（クリック率%）
-    - インプレッション経由の視聴時間（分）
-    - インプレッション経由の平均視聴時間（秒）
-
-注意:
-    インプレッション系メトリクスは比較的新しく追加されたため、
-    一部の古いチャンネルや特定の動画ではデータが取れない場合があります。
+チャンネルの規模・開設時期によって impressions / impressionsCtr が
+利用できない場合があるため、まず impressions を試し、エラーなら
+impressions なしで取得し直す。チャンネルが成長すれば自動的に
+impressions データが解放される。
 """
 
 from __future__ import annotations
@@ -32,14 +27,11 @@ SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
 ]
 
-METRICS = ",".join(
-    [
-        "views",
-        "estimatedMinutesWatched",
-        "impressions",                # サムネ表示回数
-        "impressionsCtr",              # CTR (%)
-    ]
-)
+# impressions対応チャンネル用（フル指標）
+METRICS_FULL = "views,estimatedMinutesWatched,impressions,impressionsCtr"
+
+# impressions非対応チャンネル用（基本指標のみ）
+METRICS_BASIC = "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage"
 
 CSV_FIELDS = [
     "snapshot_date",
@@ -48,8 +40,10 @@ CSV_FIELDS = [
     "video_id",
     "views",
     "estimated_minutes_watched",
-    "impressions",
-    "impressions_ctr",
+    "average_view_duration_sec",
+    "average_view_percentage",
+    "impressions",        # 未対応チャンネルでは空欄
+    "impressions_ctr",    # 未対応チャンネルでは空欄
 ]
 
 
@@ -69,16 +63,16 @@ def load_credentials() -> Credentials:
     return Credentials.from_authorized_user_info(token_data, scopes=SCOPES)
 
 
-def fetch_impressions(analytics, start: str, end: str) -> list[dict]:
+def fetch_impressions(analytics, metrics: str, start: str, end: str) -> list[dict]:
     response = (
         analytics.reports()
         .query(
             ids="channel==MINE",
             startDate=start,
             endDate=end,
-            metrics=METRICS,
+            metrics=metrics,
             dimensions="video",
-            sort="-impressions",
+            sort="-views",
             maxResults=200,
         )
         .execute()
@@ -91,6 +85,8 @@ def fetch_impressions(analytics, start: str, end: str) -> list[dict]:
         "video": "video_id",
         "views": "views",
         "estimatedMinutesWatched": "estimated_minutes_watched",
+        "averageViewDuration": "average_view_duration_sec",
+        "averageViewPercentage": "average_view_percentage",
         "impressions": "impressions",
         "impressionsCtr": "impressions_ctr",
     }
@@ -131,8 +127,20 @@ def main() -> int:
     print(f"[impressions] {start_str} 〜 {end_str} のCTRデータを取得")
 
     analytics = build("youtubeAnalytics", "v2", credentials=creds, cache_discovery=False)
-    rows = fetch_impressions(analytics, start_str, end_str)
-    print(f"[impressions] {len(rows)} 件のレコードを取得")
+
+    # まずフル指標で試す
+    try:
+        rows = fetch_impressions(analytics, METRICS_FULL, start_str, end_str)
+        print(f"[impressions] フル指標（impressions含む）で {len(rows)} 件取得")
+    except Exception as e:
+        # impressions非対応の場合は基本指標にフォールバック
+        print(f"[impressions] impressions非対応のため基本指標で再取得: {e}", file=sys.stderr)
+        try:
+            rows = fetch_impressions(analytics, METRICS_BASIC, start_str, end_str)
+            print(f"[impressions] 基本指標で {len(rows)} 件取得（impressions列は空欄）")
+        except Exception as e2:
+            print(f"[impressions] 基本指標でも失敗: {e2}", file=sys.stderr)
+            return 1
 
     enriched = [
         {
