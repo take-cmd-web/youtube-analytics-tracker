@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Analytics Terminal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #0f0f18;
+    --bg3: #141420;
+    --border: #1e1e30;
+    --accent: #00ff88;
+    --accent2: #00aaff;
+    --accent3: #ff4488;
+    --accent4: #ffaa00;
+    --text: #c8c8d8;
+    --text-dim: #666680;
+    --text-bright: #f0f0ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+
+  .header-left { display: flex; align-items: center; gap: 16px; }
+
+  .logo {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.1em;
+  }
+
+  .channel-name {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,255,136,0.08);
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .updated-at { color: var(--text-dim); font-size: 11px; }
+
+  /* ── Layout ── */
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── KPI Cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .kpi-card.green::before { background: var(--accent); }
+  .kpi-card.blue::before  { background: var(--accent2); }
+  .kpi-card.pink::before  { background: var(--accent3); }
+  .kpi-card.yellow::before{ background: var(--accent4); }
+
+  .kpi-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  /* ── Section ── */
+  .section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg3);
+  }
+
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-bright);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .section-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .section-body { padding: 20px; }
+
+  /* ── Charts ── */
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+
+  .chart-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 768px) {
+    .chart-grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* ── Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(30,30,48,0.5);
+    color: var(--text);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .rank { color: var(--text-dim); font-size: 11px; }
+  .rank-1 { color: var(--accent4); font-weight: 700; }
+  .rank-2 { color: var(--text); }
+  .rank-3 { color: var(--text-dim); }
+
+  .video-title {
+    color: var(--text-bright);
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .badge-green { background: rgba(0,255,136,0.1); color: var(--accent); }
+  .badge-blue  { background: rgba(0,170,255,0.1); color: var(--accent2); }
+  .badge-pink  { background: rgba(255,68,136,0.1); color: var(--accent3); }
+
+  /* ── Retention bar ── */
+  .ret-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .ret-bar-bg {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .ret-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: width 0.6s ease;
+  }
+  .ret-val { font-size: 11px; color: var(--text-dim); width: 40px; text-align: right; }
+
+  /* ── Traffic source ── */
+  .traffic-list { display: flex; flex-direction: column; gap: 10px; }
+  .traffic-item { display: flex; align-items: center; gap: 12px; }
+  .traffic-label { width: 140px; font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .traffic-bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .traffic-bar-fill { height: 100%; border-radius: 3px; background: var(--accent2); }
+  .traffic-val { width: 40px; text-align: right; font-size: 11px; color: var(--text); }
+
+  /* ── Loading ── */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+
+  .loading::before {
+    content: '';
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Tooltip-like sub ── */
+  .num-green { color: var(--accent); }
+  .num-blue  { color: var(--accent2); }
+  .num-dim   { color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div>
+      <div class="logo">▶ YT ANALYTICS TERMINAL</div>
+      <div class="channel-name" id="channelName">中島武信のFinancial_Lab</div>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+  </div>
+  <div class="updated-at" id="updatedAt">UPDATED —</div>
+</header>
+
+<main>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card green">
+      <div class="kpi-label">チャンネル登録者</div>
+      <div class="kpi-value" id="kpiSubs">—</div>
+      <div class="kpi-sub" id="kpiSubsSub">最新スナップショット</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">総再生回数</div>
+      <div class="kpi-value" id="kpiViews">—</div>
+      <div class="kpi-sub">全期間合計</div>
+    </div>
+    <div class="kpi-card pink">
+      <div class="kpi-label">動画本数</div>
+      <div class="kpi-value" id="kpiVideos">—</div>
+      <div class="kpi-sub">公開中</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">平均CTR</div>
+      <div class="kpi-value" id="kpiCtr">—</div>
+      <div class="kpi-sub">インプレッション→クリック率</div>
+    </div>
+  </div>
+
+  <!-- 登録者推移 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><div class="dot"></div>チャンネル登録者推移</div>
+      <div class="section-meta">DAILY SNAPSHOT</div>
+    </div>
+    <div class="section-body">
+      <div class="chart-wrap"><canvas id="chartSubs"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 視聴回数推移 -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><div class="dot" style="background:var(--accent2)"></div>動画別 視聴回数</div>
+      <div class="section-meta">BY VIDEO</div>
+    </div>
+    <div class="section-body">
+      <div class="chart-wrap"><canvas id="chartViews"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 平均視聴率 & 流入元 -->
+  <div class="chart-grid-2">
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title"><div class="dot" style="background:var(--accent3)"></div>平均視聴維持率</div>
+        <div class="section-meta">AVG RETENTION %</div>
+      </div>
+      <div class="section-body" id="retentionList">
+        <div class="loading">読み込み中</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title"><div class="dot" style="background:var(--accent4)"></div>流入元</div>
+        <div class="section-meta">TRAFFIC SOURCE</div>
+      </div>
+      <div class="section-body" id="trafficList">
+        <div class="loading">読み込み中</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 動画ランキング -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><div class="dot"></div>動画ランキング</div>
+      <div class="section-meta">BY VIEWS</div>
+    </div>
+    <div class="section-body" style="padding:0">
+      <div id="videoTable"><div class="loading" style="padding:24px">読み込み中</div></div>
+    </div>
+  </div>
+
+  <!-- 視聴維持率カーブ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><div class="dot" style="background:var(--accent3)"></div>視聴維持率カーブ</div>
+      <div class="section-meta">RETENTION CURVE</div>
+    </div>
+    <div class="section-body">
+      <div class="chart-wrap" style="height:260px"><canvas id="chartRetention"></canvas></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Config ──────────────────────────────────────────────
+// GitHubのraw URLに変更してください
+const GITHUB_RAW = 'https://raw.githubusercontent.com/take-cmd-web/youtube-analytics-tracker/main/data';
+
+const URLS = {
+  channel:    `${GITHUB_RAW}/channel_daily.csv`,
+  videos:     `${GITHUB_RAW}/videos_daily.csv`,
+  analytics:  `${GITHUB_RAW}/analytics_daily.csv`,
+  traffic:    `${GITHUB_RAW}/traffic_sources.csv`,
+  impressions:`${GITHUB_RAW}/impressions_ctr.csv`,
+  retention:  `${GITHUB_RAW}/retention_curves.csv`,
+};
+
+const TRAFFIC_LABEL = {
+  BROWSE: 'ブラウジング機能',
+  EXT_URL: '外部サイト',
+  RELATED_VIDEO: '関連動画',
+  YT_SEARCH: 'YouTube検索',
+  YT_CHANNEL: 'チャンネルページ',
+  SUBSCRIBER: '登録者通知',
+  PLAYLIST: '再生リスト',
+  NO_LINK_OTHER: 'ダイレクト',
+  NOTIFICATION: '通知',
+  END_SCREEN: '終了画面',
+  SHORTS: 'ショート',
+  HASHTAGS: 'ハッシュタグ',
+};
+
+// ── CSV Parser ───────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/\r/g,''));
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.trim().replace(/\r/g,''));
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = vals[i] ?? '');
+    return obj;
+  });
+}
+
+async function fetchCSV(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`fetch failed: ${url}`);
+  return parseCSV(await res.text());
+}
+
+// ── Dedup: snapshot_dateとvideo_idが同じ行は最新1件だけ残す ──
+function dedup(rows, keys) {
+  const seen = new Map();
+  for (const row of rows) {
+    const k = keys.map(k => row[k]).join('|');
+    seen.set(k, row); // 後勝ち（最新）
+  }
+  return [...seen.values()];
+}
+
+// ── Chart defaults ───────────────────────────────────────
+Chart.defaults.color = '#666680';
+Chart.defaults.borderColor = '#1e1e30';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 11;
+
+const COLORS = ['#00ff88','#00aaff','#ff4488','#ffaa00','#aa44ff','#00ffcc'];
+
+function makeLineChart(id, labels, datasets) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: datasets.map((d, i) => ({
+        ...d,
+        borderColor: d.color || COLORS[i % COLORS.length],
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.3,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: datasets.length > 1, labels: { boxWidth: 10, padding: 16 } } },
+      scales: {
+        x: { grid: { color: '#1a1a28' }, ticks: { maxTicksLimit: 8 } },
+        y: { grid: { color: '#1a1a28' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── Main ─────────────────────────────────────────────────
+async function init() {
+  try {
+    const [channelRows, videoRows, analyticsRows, trafficRows, impRows, retRows] = await Promise.all([
+      fetchCSV(URLS.channel),
+      fetchCSV(URLS.videos),
+      fetchCSV(URLS.analytics),
+      fetchCSV(URLS.traffic),
+      fetchCSV(URLS.impressions),
+      fetchCSV(URLS.retention),
+    ]);
+
+    // 最終更新日
+    const latestDate = channelRows.at(-1)?.snapshot_date || '';
+    document.getElementById('updatedAt').textContent = `UPDATED ${latestDate}`;
+
+    renderKPI(channelRows, impRows);
+    renderSubsChart(channelRows);
+    renderViewsChart(videoRows);
+    renderRetentionBars(analyticsRows);
+    renderTraffic(trafficRows);
+    renderVideoTable(videoRows, analyticsRows, impRows);
+    renderRetentionCurve(retRows, videoRows);
+
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+// ── KPI ──────────────────────────────────────────────────
+function renderKPI(channelRows, impRows) {
+  // 重複除去して最新1件
+  const ch = dedup(channelRows, ['snapshot_date','channel_id']);
+  const latest = ch.at(-1);
+  if (!latest) return;
+
+  document.getElementById('kpiSubs').textContent = Number(latest.subscriber_count).toLocaleString();
+  document.getElementById('kpiViews').textContent = Number(latest.view_count).toLocaleString();
+  document.getElementById('kpiVideos').textContent = latest.video_count;
+
+  // CTR平均
+  const ctrs = impRows.filter(r => r.impressions_ctr && !isNaN(+r.impressions_ctr)).map(r => +r.impressions_ctr);
+  const avgCtr = ctrs.length ? (ctrs.reduce((a,b)=>a+b,0)/ctrs.length).toFixed(1)+'%' : '—';
+  document.getElementById('kpiCtr').textContent = avgCtr;
+}
+
+// ── Subscribers chart ────────────────────────────────────
+function renderSubsChart(rows) {
+  const deduped = dedup(rows, ['snapshot_date','channel_id']);
+  const sorted = deduped.sort((a,b)=>a.snapshot_date.localeCompare(b.snapshot_date));
+  makeLineChart('chartSubs',
+    sorted.map(r => r.snapshot_date.slice(5)),
+    [{ label: '登録者数', data: sorted.map(r => +r.subscriber_count) }]
+  );
+}
+
+// ── Views chart ──────────────────────────────────────────
+function renderViewsChart(rows) {
+  // 最新snapshot_dateの動画ごとの視聴回数
+  const deduped = dedup(rows, ['snapshot_date','video_id']);
+  const latest = deduped.reduce((acc, r) => {
+    if (!acc[r.video_id] || r.snapshot_date > acc[r.video_id].snapshot_date) acc[r.video_id] = r;
+    return acc;
+  }, {});
+  const videos = Object.values(latest)
+    .filter(r => r.title && +r.view_count > 0)
+    .sort((a,b) => +b.view_count - +a.view_count)
+    .slice(0, 6);
+
+  const ctx = document.getElementById('chartViews').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: videos.map(v => v.title.length > 18 ? v.title.slice(0,18)+'…' : v.title),
+      datasets: [{
+        label: '視聴回数',
+        data: videos.map(v => +v.view_count),
+        backgroundColor: COLORS.map(c => c + '33'),
+        borderColor: COLORS,
+        borderWidth: 2,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#1a1a28' }, beginAtZero: true },
+        y: { grid: { display: false }, ticks: { font: { family: "'Noto Sans JP'", size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── Retention bars ────────────────────────────────────────
+function renderRetentionBars(rows) {
+  const el = document.getElementById('retentionList');
+  // 最新snapshot_dateのvideo_id別データ
+  const deduped = dedup(rows, ['snapshot_date','video_id']);
+  const latest = {};
+  for (const r of deduped) {
+    if (!latest[r.video_id] || r.snapshot_date > latest[r.video_id].snapshot_date) latest[r.video_id] = r;
+  }
+  const videos = Object.values(latest)
+    .filter(r => r.average_view_percentage && +r.average_view_percentage > 0)
+    .sort((a,b) => +b.average_view_percentage - +a.average_view_percentage);
+
+  if (!videos.length) { el.innerHTML = '<div class="loading">データなし</div>'; return; }
+
+  el.innerHTML = videos.map(v => `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;font-family:'Noto Sans JP';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.video_id}</div>
+      <div class="ret-bar-wrap">
+        <div class="ret-bar-bg"><div class="ret-bar-fill" style="width:${Math.min(+v.average_view_percentage,100)}%"></div></div>
+        <div class="ret-val">${(+v.average_view_percentage).toFixed(1)}%</div>
+      </div>
+    </div>
+  `).join('');
+
+  // video_idをタイトルに置き換え（後から）
+}
+
+// ── Traffic source ────────────────────────────────────────
+function renderTraffic(rows) {
+  const el = document.getElementById('trafficList');
+  // チャンネル全体（video_id=ALL）の最新データを優先、なければ最新スナップの合計
+  const allRows = rows.filter(r => r.video_id === 'ALL');
+  const target = allRows.length > 0 ? allRows : rows;
+
+  const agg = {};
+  for (const r of target) {
+    const k = TRAFFIC_LABEL[r.traffic_source_type] || r.traffic_source_type;
+    agg[k] = (agg[k] || 0) + (+r.views || 0);
+  }
+
+  const sorted = Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const max = sorted[0]?.[1] || 1;
+
+  el.innerHTML = `<div class="traffic-list">${sorted.map(([label, views]) => `
+    <div class="traffic-item">
+      <div class="traffic-label">${label}</div>
+      <div class="traffic-bar-bg"><div class="traffic-bar-fill" style="width:${(views/max*100).toFixed(1)}%"></div></div>
+      <div class="traffic-val">${views.toLocaleString()}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
+// ── Video table ───────────────────────────────────────────
+function renderVideoTable(videoRows, analyticsRows, impRows) {
+  const el = document.getElementById('videoTable');
+
+  // 最新の動画データ
+  const deduped = dedup(videoRows, ['snapshot_date','video_id']);
+  const latest = {};
+  for (const r of deduped) {
+    if (!latest[r.video_id] || r.snapshot_date > latest[r.video_id].snapshot_date) latest[r.video_id] = r;
+  }
+
+  // analyticsデータ（最新）
+  const anaLatest = {};
+  for (const r of dedup(analyticsRows, ['snapshot_date','video_id'])) {
+    if (!anaLatest[r.video_id] || r.snapshot_date > anaLatest[r.video_id].snapshot_date) anaLatest[r.video_id] = r;
+  }
+
+  // impressionsデータ（最新）
+  const impLatest = {};
+  for (const r of dedup(impRows, ['snapshot_date','video_id'])) {
+    if (!impLatest[r.video_id] || r.snapshot_date > impLatest[r.video_id].snapshot_date) impLatest[r.video_id] = r;
+  }
+
+  const videos = Object.values(latest)
+    .filter(r => r.title && +r.view_count > 0)
+    .sort((a,b) => +b.view_count - +a.view_count);
+
+  const rows = videos.map((v, i) => {
+    const ana = anaLatest[v.video_id] || {};
+    const imp = impLatest[v.video_id] || {};
+    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : 'rank-3';
+    const ret = ana.average_view_percentage ? (+ana.average_view_percentage).toFixed(1)+'%' : '—';
+    const ctr = imp.impressions_ctr ? (+imp.impressions_ctr).toFixed(1)+'%' : '—';
+    const avgDur = ana.average_view_duration_sec ? formatDuration(+ana.average_view_duration_sec) : '—';
+    return `
+      <tr>
+        <td><span class="rank ${rankClass}">#${i+1}</span></td>
+        <td>
+          <div class="video-title">${v.title}</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${v.video_id}</div>
+        </td>
+        <td><span class="num-green">${Number(v.view_count).toLocaleString()}</span></td>
+        <td><span class="num-blue">${v.like_count !== '' ? v.like_count : '—'}</span></td>
+        <td>${ret}</td>
+        <td>${avgDur}</td>
+        <td>${ctr}</td>
+        <td><span class="num-dim">${v.published_at ? v.published_at.slice(0,10) : '—'}</span></td>
+      </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>タイトル</th><th>再生数</th><th>👍</th>
+        <th>維持率</th><th>平均視聴時間</th><th>CTR</th><th>公開日</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Retention curve ───────────────────────────────────────
+function renderRetentionCurve(rows, videoRows) {
+  // video_id → title マップ
+  const titleMap = {};
+  for (const r of videoRows) { if (r.title) titleMap[r.video_id] = r.title; }
+
+  // video_idごとにデータをグループ化（最新snapshot_dateのみ）
+  const byVideo = {};
+  for (const r of rows) {
+    const vid = r.video_id;
+    if (!byVideo[vid] || r.snapshot_date > byVideo[vid][0]?.snapshot_date) byVideo[vid] = [];
+    byVideo[vid].push(r);
+  }
+
+  const datasets = Object.entries(byVideo).slice(0,4).map(([vid, pts], i) => ({
+    label: (titleMap[vid] || vid).slice(0, 20),
+    data: pts.sort((a,b)=>+a.elapsed_video_time_ratio - +b.elapsed_video_time_ratio)
+             .map(p => ({ x: +(+p.elapsed_video_time_ratio*100).toFixed(0), y: +(+p.audience_watch_ratio*100).toFixed(1) })),
+    color: COLORS[i],
+  }));
+
+  const ctx = document.getElementById('chartRetention').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: datasets.map((d, i) => ({
+        label: d.label,
+        data: d.data,
+        borderColor: d.color,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      parsing: false,
+      plugins: { legend: { display: true, labels: { boxWidth: 10, padding: 16, font: { family: "'Noto Sans JP'", size: 11 } } } },
+      scales: {
+        x: { type: 'linear', min: 0, max: 100, grid: { color: '#1a1a28' },
+             title: { display: true, text: '動画再生位置 (%)', color: '#666680' } },
+        y: { min: 0, max: 100, grid: { color: '#1a1a28' },
+             title: { display: true, text: '視聴維持率 (%)', color: '#666680' } }
+      }
+    }
+  });
+}
+
+// ── Utils ─────────────────────────────────────────────────
+function formatDuration(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+init();
+</script>
+</body>
+</html>
