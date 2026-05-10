@@ -2,18 +2,16 @@ name: Daily YouTube Metrics Collection
 
 on:
   schedule:
-    # 毎日 UTC 03:00 = JST 12:00 に実行
-    # cronはUTC基準。JST深夜回したいなら '0 15 * * *' (= JST 00:00) など
-    - cron: '0 3 * * *'
-  workflow_dispatch:  # 手動実行も可能にする
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write  # CSV更新を自動コミットするため
+  contents: write
 
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -41,16 +39,32 @@ jobs:
           OAUTH_CLIENT_JSON: ${{ secrets.OAUTH_CLIENT_JSON }}
           OAUTH_TOKEN_JSON: ${{ secrets.OAUTH_TOKEN_JSON }}
         run: python src/fetch_analytics_api.py
+        continue-on-error: true
+
+      - name: Fetch traffic sources
+        env:
+          OAUTH_CLIENT_JSON: ${{ secrets.OAUTH_CLIENT_JSON }}
+          OAUTH_TOKEN_JSON: ${{ secrets.OAUTH_TOKEN_JSON }}
+        run: python src/fetch_traffic_sources.py
+        continue-on-error: true
+
+      - name: Fetch impressions and CTR
+        env:
+          OAUTH_CLIENT_JSON: ${{ secrets.OAUTH_CLIENT_JSON }}
+          OAUTH_TOKEN_JSON: ${{ secrets.OAUTH_TOKEN_JSON }}
+        run: python src/fetch_impressions.py
+        continue-on-error: true
+
+      - name: Fetch retention curves
+        env:
+          OAUTH_CLIENT_JSON: ${{ secrets.OAUTH_CLIENT_JSON }}
+          OAUTH_TOKEN_JSON: ${{ secrets.OAUTH_TOKEN_JSON }}
+        run: python src/fetch_retention.py
+        continue-on-error: true
 
       - name: Commit updated CSVs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/
-          # 変更がなければコミットしない（exit 0で終了）
-          if git diff --cached --quiet; then
-            echo "変更なし - コミットスキップ"
-          else
-            git commit -m "chore: daily metrics update $(date -u +%Y-%m-%d)"
-            git push
-          fi
+          if git diff --cached --quie
